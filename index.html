@@ -1,35 +1,75 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>XSeq Studio</title>
+
 <style>
-:root{color-scheme:dark}
-body{margin:0;background:#0c1017;color:#eef2f7;font-family:system-ui,-apple-system,sans-serif}
-main{max-width:760px;margin:auto;padding:22px}
-.card{background:#171d27;border:1px solid #303949;border-radius:18px;padding:22px;margin-bottom:16px}
-h1{margin:0 0 4px;font-size:32px}
-h2{font-size:19px;margin-top:0}
-p{color:#aeb9c8;line-height:1.45}
-label{display:block;font-weight:700;margin:18px 0 7px}
-input,select,button{width:100%;box-sizing:border-box;padding:14px;border-radius:11px;border:1px solid #3d485b;background:#0f141c;color:white;font-size:16px}
-button{background:#f2f5f8;color:#111827;font-weight:800;margin-top:20px}
-button:disabled{opacity:.45}
-.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stat{background:#0f141c;border-radius:11px;padding:12px}
-.stat small{display:block;color:#8995a6}
-.stat strong{font-size:18px}
-.hidden{display:none}
-.good{color:#67e8a5}
-#error{color:#ff8585}
-#progress{margin-top:15px;color:#67e8a5}
-.note{font-size:13px}
+body {
+  margin: 0;
+  background: #0b0f17;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+.container {
+  padding: 20px;
+  max-width: 700px;
+  margin: auto;
+}
+
+.card {
+  background: #171c28;
+  border: 1px solid #333b4c;
+  border-radius: 20px;
+  padding: 22px;
+  margin-bottom: 20px;
+}
+
+h1 {
+  font-size: 34px;
+  margin: 0 0 15px;
+}
+
+h2 {
+  margin-top: 0;
+}
+
+p {
+  color: #b5bdca;
+  line-height: 1.5;
+}
+
+label {
+  display: block;
+  margin: 18px 0 8px;
+  font-weight: bold;
+}
+
+input, select, button {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 15px;
+  font-size: 16px;
+  border-radius: 10px;
+  border: 1px solid #465064;
+  background: #0d121b;
+  color: white;
+}
+
+button {
+  margin-top: 25px;
+  background: white;
+  color: black;
+  font-weight: bold;
+}
 </style>
 </head>
 
 <body>
-<main>
+
+<div class="container">
 
 <div class="card">
 <h1>🎃 XSeq Studio</h1>
@@ -37,4 +77,69 @@ button:disabled{opacity:.45}
 </div>
 
 <div class="card">
-<h
+<h2>1. Your Display</h2>
+
+<label>Select xlights_rgbeffects.xml</label>
+<input type="file" accept=".xml">
+
+<p>Your layout will be analyzed directly on your phone.</p>
+</div>
+
+<div class="card">
+<h2>2. Your Song</h2>
+
+<label>Select MP3 or WAV</label>
+<input type="file" accept=".mp3,.wav,audio/*">
+
+<p>The song will be analyzed for beats, energy and musical changes.</p>
+</div>
+
+<div class="card">
+<h2>3. Sequence Settings</h2>
+
+<label>Style</label>
+<select>
+<option>Halloween</option>
+<option>Rock</option>
+<option>Cinematic</option>
+<option>EDM</option>
+</select>
+
+<label>Intro / Quiet Sections</label>
+<select>
+<option>20% of props</option>
+<option selected>30% of props</option>
+<option>40% of props</option>
+</select>
+
+<label>Main Sections</label>
+<select>
+<option>60% of props</option>
+<option selected>70% of props</option>
+<option>80% of props</option>
+</select>
+
+<label>Chorus / Peak</label>
+<select>
+<option>90% of props</option>
+<option selected>100% of props</option>
+</select>
+
+<button>Analyze & Create Sequence</button>
+</div>
+
+<div class="card">
+<h2>What XSeq Studio will create</h2>
+<p>
+✓ Beat timing track<br><br>
+✓ Musical section timing track<br><br>
+✓ Dynamic prop usage<br><br>
+✓ xLights effects<br><br>
+✓ Downloadable .xsq sequence
+</p>
+</div>
+
+</div>
+
+</body>
+</html>
