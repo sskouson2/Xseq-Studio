@@ -1,0 +1,304 @@
+// XSeq Studio Engine v1
+
+window.XSeq = {
+  models: [],
+  groups: [],
+  audio: null,
+  analysis: null,
+
+  async loadLayout(file) {
+    const text = await file.text();
+    const xml = new DOMParser().parseFromString(text, "application/xml");
+
+    if (xml.querySelector("parsererror")) {
+      throw new Error("The xLights XML could not be read.");
+    }
+
+    this.models = [...xml.querySelectorAll("models > model")]
+      .map(m => ({
+        name: m.getAttribute("name") || "",
+        type: m.getAttribute("DisplayAs") || ""
+      }))
+      .filter(m => m.name);
+
+    this.groups = [...xml.querySelectorAll("modelGroups > modelGroup")]
+      .map(g => ({
+        name: g.getAttribute("name") || "",
+        members: (g.getAttribute("models") || "")
+          .split(",")
+          .filter(Boolean)
+      }))
+      .filter(g => g.name);
+
+    return {
+      models: this.models.length,
+      groups: this.groups.length
+    };
+  },
+
+  async analyzeSong(file, progressCallback) {
+    progressCallback?.("Reading song…");
+
+    const buffer = await file.arrayBuffer();
+
+    progressCallback?.("Decoding audio…");
+
+    const AudioCtx =
+      window.AudioContext || window.webkitAudioContext;
+
+    const ctx = new AudioCtx();
+
+    const decoded = await ctx.decodeAudioData(buffer.slice(0));
+
+    this.audio = {
+      filename: file.name,
+      duration: decoded.duration,
+      sampleRate: decoded.sampleRate
+    };
+
+    progressCallback?.("Analyzing musical energy…");
+
+    const channel = decoded.getChannelData(0);
+    const sr = decoded.sampleRate;
+
+    // 50 ms analysis windows
+    const windowSeconds = 0.05;
+    const hop = Math.max(1, Math.floor(sr * windowSeconds));
+
+    const energy = [];
+
+    for (let start = 0; start < channel.length; start += hop) {
+      const end = Math.min(channel.length, start + hop);
+
+      let sum = 0;
+
+      for (let i = start; i < end; i++) {
+        sum += channel[i] * channel[i];
+      }
+
+      energy.push(
+        Math.sqrt(sum / Math.max(1, end - start))
+      );
+    }
+
+    progressCallback?.("Finding musical hits…");
+
+    const onset = [0];
+
+    for (let i = 1; i < energy.length; i++) {
+      onset.push(
+        Math.max(0, energy[i] - energy[i - 1])
+      );
+    }
+
+    // Smooth onset envelope
+    const smooth = onset.map((_, i) => {
+      let total = 0;
+      let count = 0;
+
+      for (let j = Math.max(0, i - 1);
+           j <= Math.min(onset.length - 1, i + 1);
+           j++) {
+        total += onset[j];
+        count++;
+      }
+
+      return total / count;
+    });
+
+    progressCallback?.("Estimating BPM…");
+
+    let bestBpm = 120;
+    let bestScore = -Infinity;
+
+    // Test musically reasonable tempos
+    for (let bpm = 70; bpm <= 180; bpm += 0.25) {
+      const beatSeconds = 60 / bpm;
+      const lag = Math.max(
+        1,
+        Math.round(beatSeconds / windowSeconds)
+      );
+
+      let score = 0;
+
+      for (let i = lag; i < smooth.length; i++) {
+        score += smooth[i] * smooth[i - lag];
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestBpm = bpm;
+      }
+    }
+
+    const beatLength = 60 / bestBpm;
+
+    progressCallback?.("Aligning beat grid…");
+
+    // Find strongest onset near beginning
+    const searchFrames = Math.min(
+      smooth.length,
+      Math.floor(5 / windowSeconds)
+    );
+
+    let firstBeat = 0;
+    let strongest = -Infinity;
+
+    for (let i = 0; i < searchFrames; i++) {
+      if (smooth[i] > strongest) {
+        strongest = smooth[i];
+        firstBeat = i * windowSeconds;
+      }
+    }
+
+    const beats = [];
+
+    for (
+      let t = firstBeat;
+      t < decoded.duration;
+      t += beatLength
+    ) {
+      beats.push(t);
+    }
+
+    progressCallback?.("Finding song sections…");
+
+    // Start with 16-beat phrases.
+    const phraseLength = beatLength * 16;
+    const sections = [];
+
+    for (
+      let start = 0;
+      start < decoded.duration;
+      start += phraseLength
+    ) {
+      const end = Math.min(
+        decoded.duration,
+        start + phraseLength
+      );
+
+      const firstFrame =
+        Math.floor(start / windowSeconds);
+
+      const lastFrame =
+        Math.min(
+          energy.length,
+          Math.ceil(end / windowSeconds)
+        );
+
+      let totalEnergy = 0;
+      let peakEnergy = 0;
+      let transientEnergy = 0;
+
+      for (let i = firstFrame; i < lastFrame; i++) {
+        totalEnergy += energy[i] || 0;
+        peakEnergy = Math.max(
+          peakEnergy,
+          energy[i] || 0
+        );
+
+        transientEnergy += smooth[i] || 0;
+      }
+
+      const count =
+        Math.max(1, lastFrame - firstFrame);
+
+      sections.push({
+        start,
+        end,
+        energy: totalEnergy / count,
+        peak: peakEnergy,
+        transient: transientEnergy / count
+      });
+    }
+
+    const values = sections.map(s => s.energy);
+
+    const minEnergy = Math.min(...values);
+    const maxEnergy = Math.max(...values);
+
+    sections.forEach((section, index) => {
+      const normalized =
+        (section.energy - minEnergy) /
+        Math.max(0.000001, maxEnergy - minEnergy);
+
+      section.intensity = normalized;
+
+      if (normalized >= 0.72) {
+        section.type = "Chorus / Peak";
+        section.density = "high";
+      } else if (normalized >= 0.36) {
+        section.type = "Main";
+        section.density = "medium";
+      } else {
+        section.type =
+          index === 0
+            ? "Intro"
+            : "Breakdown / Quiet";
+        section.density = "low";
+      }
+    });
+
+    progressCallback?.("Finishing analysis…");
+
+    this.analysis = {
+      bpm: bestBpm,
+      beatLength,
+      firstBeat,
+      beats,
+      sections,
+      duration: decoded.duration
+    };
+
+    await ctx.close();
+
+    progressCallback?.("");
+
+    return this.analysis;
+  },
+
+  classifyProp(name) {
+    const n = name.toLowerCase();
+
+    if (
+      n.includes("tv") ||
+      n.includes("matrix")
+    ) return "matrix";
+
+    if (n.includes("arch"))
+      return "arch";
+
+    if (n.includes("pole"))
+      return "pole";
+
+    if (n.includes("icicle"))
+      return "icicle";
+
+    if (
+      n.includes("roof") ||
+      n.includes("garage") ||
+      n.includes("window") ||
+      n.includes("door")
+    ) return "outline";
+
+    if (
+      n.includes("bat") ||
+      n.includes("spider") ||
+      n.includes("pumpkin") ||
+      n.includes("pimp") ||
+      n.includes("widow")
+    ) return "special";
+
+    return "general";
+  },
+
+  formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+
+    const secs = Math.floor(seconds % 60)
+      .toString()
+      .padStart(2, "0");
+
+    return `${minutes}:${secs}`;
+  }
+};
